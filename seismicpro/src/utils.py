@@ -4,11 +4,12 @@ import shutil
 import tempfile
 import functools
 
+import segyio
 import numpy as np
 import pandas as pd
-from sklearn.linear_model import LinearRegression
 from scipy.signal import medfilt, hilbert
-import segyio
+from matplotlib.ticker import IndexFormatter
+from sklearn.linear_model import LinearRegression
 
 from ..batchflow import FilesIndex
 
@@ -792,3 +793,51 @@ def transform_to_fixed_width_columns(path, path_save=None, n_spaces=8, max_len=(
             if path_save:
                 return
             shutil.copyfile(write_file.name, path)
+
+def collect_components_data(batch, src, pos):
+    """ Collect data from the batch. 
+    Packs it into 2d array 'O' dtype, where each elent is a component object. """
+    if src[0] is None:
+        return None        
+    data = np.empty((len(pos), len(src)), 'O')
+    for i, ipos in enumerate(pos):
+        for j, isrc in enumerate(src):
+            data[i, j] = getattr(batch, isrc)[ipos]
+    return data
+
+def is_2d_array(array):
+    return np.isscalar(array[0][0])
+
+def is_1d_array(array):
+    return np.isscalar(array[0])
+
+def infer_array(data, cond):
+    """ Given the nested(max depth 2) structure of objects,  where the object is defined 
+    by the condition (for example: for gather - is_2d_array, for horizon - is_1d_array) rearange it into
+    np.2darray with 'O' dtype. Each element of resulted array is a requsted object.
+    """
+    if data is None:
+        return None 
+
+    if cond(data): # data is a desired object, wrap it into 'O' array with shape 1x1 
+        blank = np.empty((1, 1), 'O')
+        blank[0, 0] = data
+    elif cond(data[0]): # data is a iterable of objects, wrap it into array with the shape 1xN
+        blank = np.empty((1, len(data)),  'O')
+        for i, _ in enumerate(data):
+            blank[0, i] = data[i]
+    elif cond(data[0][0]):  # data is a nested(depth 2) structure of objects, wrap it into array with the shape MxN
+        blank = np.empty((len(data), len(data[0])), 'O')
+        for i, _ in enumerate(data):
+            for j, _ in enumerate(data[0]):
+                blank[i, j] = data[i][j]
+
+    return blank
+
+def to_list(obj, n=1):
+    """Cast an object to a list and repeat it n times. Almost identical to `list(obj)` for 1-D
+    objects, except for `str`, which won't be split into separate letters but
+    transformed into a list of a single element.
+    """
+    return np.ravel(obj).tolist() * n
+     
