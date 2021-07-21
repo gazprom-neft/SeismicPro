@@ -140,6 +140,40 @@ def read_single_vfunc(path):
     return file_data[0]
 
 
+def dump_vfunc(path, vfunc_list):
+    """Dump vertical functions in Paradigm Echos VFUNC format to the file.
+
+    For each vfunc there is corresponding block in the resulted file with the following strcture:
+    The first row contains 3 values: VFUNC [inline] [crossline].
+    All other rows represent pairs: [time] [velocity]. The single row contains 4 pairs(8 fields),
+    except the last one, which may contain less. Each field is left aligned with the width 8.
+
+    Block example
+    :::
+    VFUNC   22      33
+    17      1546    150     1530    294     1672    536     1812
+    760     1933    960     2000    1202    2148    1374    2251
+    1574    2409    1732    2517    1942    2675
+    :::
+
+    Parameters
+    ----------
+    path : str
+        A path to the file.
+    vfunc_list : iterable of tuples
+        Each tuple corresponds to a vertical function and consists of the following values: `inline`, `crossline`,
+        `x` and `y`, where `x` and `y` are 1d np.ndarrays with the same length.
+    """
+    with open(path, 'w') as f:
+        for inline, crossline, times, offsets in vfunc_list:
+            f.write('{:8}{:<8}{:<8}\n'.format('VFUNC', inline, crossline))
+    
+            data = np.dstack([times, offsets])
+            rows = np.split(data.flatten(), np.arange(8, data.size, 8))
+            for row in rows:
+                f.write(''.join(['{:<8.0f}'.format(i) for i in row] + ['\n']))
+
+
 # pylint: disable=too-many-arguments, invalid-name
 def make_prestack_segy(path, survey_size=(1000, 1000), origin=(0, 0), sources_step=(50, 300), recievers_step=(100, 25),
                        bin_size=(50, 50), activation_dist=(500, 500), n_samples=1500, sample_rate=2000, delay=0,
